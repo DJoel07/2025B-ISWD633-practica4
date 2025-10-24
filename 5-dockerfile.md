@@ -57,13 +57,55 @@ No olvides verificar en qué directorio se encuentra el archivo Dockerfile
 ```
 
 **¿Cuántos pasos se han ejecutado?**
-# RESPONDER 
+Se han ejecutado 7 pasos, que corresponden a las siguientes instrucciones del Dockerfile:
+
+FROM centos:7 - [1/5] (CACHED - reutilizado de caché)
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g'... - [2/5] (0.3s)
+RUN yum -y update - [3/5] (36.8s)
+RUN yum -y install httpd - [4/5] (5.9s)
+COPY ./web /var/www/html - [5/5] (0.1s)
+EXPOSE 80 (implícito, no aparece en el output pero está en el Dockerfile)
+CMD ["apachectl", "-D", "FOREGROUND"] (implícito, no aparece en el output pero está en el Dockerfile)
 
 ### Inspeccionar la imagen creada
-# COMPLETAR CON UNA CAPTURA
+<img width="978" height="516" alt="image" src="https://github.com/user-attachments/assets/68ffe257-4403-4e52-9a2a-08485c098cc0" />
+<img width="951" height="728" alt="image" src="https://github.com/user-attachments/assets/ed0bdd11-17e3-4b16-a18e-bf666e9ca51a" />
+<img width="957" height="798" alt="image" src="https://github.com/user-attachments/assets/4bf8c1ac-2333-430f-a326-b56e6981b608" />
+
+
+
 
 **Modificar el archivo index.html para incluir su nombre y luego crear una nueva versión de la imagen anterior**
 **¿Cuántos pasos se han ejecutado? ¿Observa algo diferente en la creación de la imagen**
+Se han ejecutado los mismos 7 pasos que en la versión 1.0. Sin embargo, se observan diferencias significativas en el proceso de construcción:
+
+Diferencias observadas:
+
+Uso de Caché (CACHED):
+
+[1/5] FROM centos:7 → CACHED (0.0s)
+[2/5] RUN sed -i 's|#baseurl=...' → CACHED (0.0s)
+[3/5] RUN yum -y update → CACHED (0.0s)
+[4/5] RUN yum -y install httpd → CACHED (0.0s)
+Paso reconstruido:
+
+[5/5] COPY ./web /var/www/html → Se ejecutó nuevamente (0.0s)
+Este paso se reconstruyó porque Docker detectó que el contenido del archivo index.html dentro del directorio web había cambiado.
+Tiempo de construcción:
+
+Versión 1.0: 57.6 segundos
+Versión 2.0: 1.4 segundos
+Diferencia: La construcción fue aproximadamente 41 veces más rápida gracias al mecanismo de caché de Docker.
+Mecanismo de Caché de Docker:
+
+Docker reutilizó las capas de los pasos 1 a 4 que no habían cambiado (imagen base, configuración de repositorios, actualización del sistema e instalación de Apache).
+Solo reconstruyó el paso 5 (COPY) y los pasos subsiguientes porque el contenido de los archivos copiados cambió.
+Esto demuestra la eficiencia del sistema de capas de Docker: solo se reconstruye lo que realmente cambió.
+Transferencia de contexto:
+
+Versión 1.0: transferring context: 59B
+Versión 2.0: transferring context: 316B
+El tamaño aumentó porque modificaste el archivo index.html, haciéndolo más grande al agregar tu nombre.
 
 ## Mecanismo de caché
 Docker usa un mecanismo de caché cuando crea imágenes para acelerar el proceso de construcción y evitar la repetición de pasos que no han cambiado. Cada instrucción en un Dockerfile crea una capa en la imagen final. Docker intenta reutilizar las capas de una construcción anterior si no han cambiado, lo que reduce significativamente el tiempo de construcción.
@@ -75,14 +117,31 @@ Docker usa un mecanismo de caché cuando crea imágenes para acelerar el proceso
 
 ### Crear un contenedor a partir de las imagen creada, mapear todos los puertos
 ```
-
+docker run -d --name contenedor-apache -P mi-apache:2.0
 ```
 
 ### ¿Con que puerto host se está realizando el mapeo?
-# COMPLETAR CON LA RESPUESTA
+El contenedor está mapeado al puerto 32768 del host, que redirige al puerto 80 del contenedor donde Apache está escuchando.
+<img width="1213" height="90" alt="image" src="https://github.com/user-attachments/assets/23f62f7a-961a-4314-be2b-bffce1e9935c" />
 
 **¿Qué es una imagen huérfana?**
-# COMPLETAR CON LA RESPUESTA
+
+Una imagen huérfana es una imagen de Docker que cumple con las siguientes características:
+
+1. **No tiene nombre ni etiqueta (tag) asociada**: Aparece en la lista de imágenes como `<none>:<none>` tanto en el nombre del repositorio como en el tag.
+
+2. **No está siendo utilizada por ningún contenedor**: No hay contenedores activos o detenidos que dependan de esta imagen.
+
+3. **Se genera principalmente cuando**:
+   - Se construye una nueva versión de una imagen con el **mismo nombre y tag** que una imagen existente. La versión anterior pierde su etiqueta y se convierte en huérfana.
+   - Un proceso de construcción de imagen **falla** o se **interrumpe** a mitad de camino.
+   - Se **eliminan manualmente los tags** de una imagen sin eliminar la imagen completa.
+   - Durante el desarrollo, al reconstruir imágenes repetidamente con el mismo nombre.
+
+4. **Problema que generan**:
+   - **Ocupan espacio en disco innecesariamente**, ya que contienen capas de imágenes que ya no se utilizan.
+   - Pueden **acumularse con el tiempo** si no se realiza un mantenimiento regular del sistema Docker.
+
 
 ### Identificar imágenes huérfanas
 ```
